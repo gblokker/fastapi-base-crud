@@ -1,0 +1,27 @@
+{
+    "editor.formatOnPaste": false,
+    "editor.formatOnSave": true,
+    "editor.formatOnType": false,
+    "files.trimTrailingWhitespace": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": "explicit"
+    },
+    "[python]": {
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    },
+    "ruff.lineLength": 88,
+    "ruff.lint.select": [
+        "E",
+        "F",
+        "I"
+    ],
+    "ruff.lint.ignore": [
+        "F401"
+    ],
+    "isort.args": [
+        "--profile",
+        "black"
+    ]
+}
