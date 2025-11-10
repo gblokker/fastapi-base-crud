@@ -168,18 +168,8 @@ class CRUDBase[
         for field, value in update_data.items():
             setattr(db_obj, field, value)
         try:
-            rows = (
-                self.db.query(self.model)
-                .filter(getattr(self.model, self.id_field_name) == id)
-                .update(update_data, synchronize_session="fetch")
-            )
-            if rows == 0:
-                logger.debug(
-                    "update_calculation: id=%s not found (no rows updated)",
-                    id,
-                )
-                return None
             self.db.commit()
+            self.db.refresh(db_obj)
             logger.info("update: updated model with id=%s", id)
             updated = self.read_by_id(id)
             return updated
