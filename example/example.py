@@ -7,8 +7,8 @@ from pathlib import Path
 # Add parent directory to path to import crud module
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from crud.aio.base import CRUDBase as AsyncCRUDBase
 from crud.base import CRUDBase
-from crud.iao.base import CRUDBase as AsyncCRUDBase
 from example.db import get_db, get_db_async
 from example.models import User
 from example.schemas import UserFilter, UserInput, UserUpdateInput
