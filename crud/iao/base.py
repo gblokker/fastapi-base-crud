@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +35,10 @@ class CRUDBase[
 ]:
     """A generic CRUD base class for SQLAlchemy models with async support."""
 
-    _type_args: tuple = ()
-    _specialization_cache: WeakValueDictionary[tuple, type] = WeakValueDictionary()
+    _type_args: tuple[Any, ...] = ()
+    _specialization_cache: WeakValueDictionary[tuple[Any, ...], type] = (
+        WeakValueDictionary()
+    )
 
     @classmethod
     def __class_getitem__(cls, params):
@@ -90,7 +92,7 @@ class CRUDBase[
     async def create(self, obj_in: CreateSchemaType) -> ModelType:
         """Create a new instance of the model using data from the Pydantic schema."""
         logger.debug("create: input data=%r", obj_in.model_dump())
-        obj = self.model(**obj_in.model_dump())
+        obj: ModelType = self.model(**obj_in.model_dump())
         try:
             self.db.add(obj)
             await self.db.commit()
@@ -100,7 +102,6 @@ class CRUDBase[
             return obj
         except SQLAlchemyError as e:
             logger.error("create: commit failed: %s", e, exc_info=True)
-            await self.db.rollback()
             raise e
 
     async def read(
@@ -131,7 +132,7 @@ class CRUDBase[
         if limit is not None:
             stmt = stmt.limit(limit)
         result = await self.db.execute(stmt)
-        results = result.scalars().all()
+        results: list[ModelType] = result.scalars().all()
         logger.info("read: retrieved %d models", len(results))
         return results
 
@@ -140,15 +141,24 @@ class CRUDBase[
         logger.debug("get: querying model with id=%s", id)
         stmt = select(self.model).where(getattr(self.model, self.id_field_name) == id)
         result = await self.db.execute(stmt)
-        db_obj = result.scalar_one_or_none()
+        db_obj: ModelType | None = result.scalar_one_or_none()
         if not db_obj:
             logger.warning("get: no model found with id=%s", id)
             return None
         logger.info("get: found model with id=%s", id)
         return db_obj
 
-    async def update(self, id: Any, obj_in: UpdateSchemaType) -> int | None:
-        """Update an existing model instance with data from the update schema."""
+    async def update(self, id: Any, obj_in: UpdateSchemaType) -> ModelType | None:
+        """Update an existing model instance with data from the update schema.
+
+        Args:
+            id (Any): The value of the id field specified on initialization of the model instance to update.
+            obj_in (UpdateSchemaType): The Pydantic schema instance containing updated data for the model.
+
+        Returns:
+            ModelType | None: The updated model instance if found, else None.
+
+        """
         db_obj = await self.read_by_id(id)
         if not db_obj:
             raise ValueError(f"update: no model found with id={id}")
@@ -162,10 +172,10 @@ class CRUDBase[
             await self.db.commit()
             await self.db.refresh(db_obj)
             logger.info("update: updated model with id=%s", id)
-            return 1
+            updated = await self.read_by_id(id)
+            return updated
         except SQLAlchemyError as e:
             logger.error("update: commit failed for id=%s: %s", id, e, exc_info=True)
-            await self.db.rollback()
             raise e
 
     async def delete(self, id: Any) -> ModelType | None:
@@ -181,5 +191,4 @@ class CRUDBase[
             return db_obj
         except SQLAlchemyError as e:
             logger.error("delete: commit failed for id=%s: %s", id, e, exc_info=True)
-            await self.db.rollback()
             raise e

@@ -15,7 +15,7 @@ from weakref import WeakValueDictionary
 
 from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import DeclarativeBase, Session
+from sqlalchemy.orm import DeclarativeBase, Session  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +33,10 @@ class CRUDBase[
 ]:
     """A generic CRUD base class for SQLAlchemy models."""
 
-    _type_args: tuple = ()
-    _specialization_cache: WeakValueDictionary[tuple, type] = WeakValueDictionary()
+    _type_args: tuple[Any, ...] = ()
+    _specialization_cache: WeakValueDictionary[tuple[Any, ...], type] = (
+        WeakValueDictionary()
+    )
 
     @classmethod
     def __class_getitem__(cls, params):
@@ -88,7 +90,7 @@ class CRUDBase[
     def create(self, obj_in: CreateSchemaType) -> ModelType:
         """Create a new instance of the model using data from the Pydantic schema."""
         logger.debug("create: input data=%r", obj_in.model_dump())
-        obj = self.model(**obj_in.model_dump())
+        obj: ModelType = self.model(**obj_in.model_dump())
         try:
             self.db.add(obj)
             self.db.commit()
@@ -134,7 +136,7 @@ class CRUDBase[
     def read_by_id(self, id: Any) -> ModelType | None:
         """Retrieve a model instance by its primary key."""
         logger.debug("get: querying model with id=%s", id)
-        db_obj = (
+        db_obj: ModelType | None = (
             self.db.query(self.model)
             .filter(getattr(self.model, self.id_field_name) == id)
             .first()
@@ -146,7 +148,16 @@ class CRUDBase[
         return db_obj
 
     def update(self, id: Any, obj_in: UpdateSchemaType) -> ModelType | None:
-        """Update an existing model instance with data from the update schema."""
+        """Update an existing model instance with data from the update schema.
+
+        Args:
+            id (Any): The value of the id field specified on initialization of the model instance to update.
+            obj_in (UpdateSchemaType): The Pydantic schema instance containing updated data for the model.
+
+        Returns:
+            ModelType | None: The updated model instance if found, else None.
+
+        """
         db_obj = self.read_by_id(id)
         if not db_obj:
             raise ValueError(f"update: no model found with id={id}")
@@ -170,7 +181,8 @@ class CRUDBase[
                 return None
             self.db.commit()
             logger.info("update: updated model with id=%s", id)
-            return rows
+            updated = self.read_by_id(id)
+            return updated
         except SQLAlchemyError as e:
             logger.error("update: commit failed for id=%s: %s", id, e, exc_info=True)
             raise e
@@ -182,7 +194,7 @@ class CRUDBase[
             logger.warning("delete: no model found with id=%s", id)
             return None
         try:
-            self.db.delete(db_obj)
+            self.db.delete(db_obj)  # type: ignore
             self.db.commit()
             logger.info("delete: deleted model with id=%s", id)
             return db_obj
